@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
     jwt_secret_key: str = "change-this-in-production"
-    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:3003", "http://localhost:3004", "http://127.0.0.1:3000", "http://127.0.0.1:3001", "http://127.0.0.1:3003", "http://127.0.0.1:3004"]
+    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:3003", "http://localhost:3004", "http://127.0.0.1:3000", "http://127.0.0.1:3001", "http://127.0.0.1:3003", "http://127.0.0.1:3004", "https://skyra-zueq.onrender.com", "https://theskyra.in", "https://www.theskyra.in"]
     log_level: str = "INFO"
     
     # Email settings

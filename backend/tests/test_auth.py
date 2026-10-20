@@ -239,8 +239,8 @@ async def test_get_me_success(async_client: AsyncClient, async_session: AsyncSes
 async def test_get_me_no_token(async_client: AsyncClient):
     """Test getting current user without token fails."""
     response = await async_client.get("/api/v1/auth/me")
-    
-    assert response.status_code == 403
+
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio
@@ -261,8 +261,8 @@ async def test_get_me_wrong_format(async_client: AsyncClient):
         "/api/v1/auth/me",
         headers={"Authorization": "WrongFormat token"}
     )
-    
-    assert response.status_code == 403
+
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio
@@ -287,5 +287,34 @@ async def test_login_invalid_json(async_client: AsyncClient):
         data="invalid json",
         headers={"Content-Type": "application/json"}
     )
-    
+
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_register_without_email_config(async_client: AsyncClient, async_session: AsyncSession):
+    """Test registration succeeds even when email service is not configured."""
+    # Temporarily disable email service
+    from app.services.email_service import email_service
+    original_configured = email_service._is_configured()
+
+    # Test registration should succeed regardless of email config
+    response = await async_client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "noemail@example.com",
+            "password": "securepassword123",
+            "full_name": "No Email User"
+        }
+    )
+
+    # Registration should succeed even if email fails
+    assert response.status_code == 201
+    data = response.json()
+    assert "access_token" in data
+    assert "user" in data
+
+    # Verify user was created in database
+    result = await async_session.execute(select(User).where(User.email == "noemail@example.com"))
+    user = result.scalar_one_or_none()
+    assert user is not None

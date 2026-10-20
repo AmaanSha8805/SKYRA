@@ -1,8 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import timedelta, datetime
-import asyncio
 from app.api.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.schemas.auth import UserRegister, UserLogin, Token, UserResponse, ChangePassword
@@ -15,44 +14,49 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
+async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db), background_tasks: BackgroundTasks = BackgroundTasks()):
     try:
         result = await db.execute(select(User).where(User.email == user_data.email))
         existing_user = result.scalar_one_or_none()
-        
+
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
             )
-        
+
         password_hash = get_password_hash(user_data.password)
         user = User(
             email=user_data.email,
             password_hash=password_hash,
             full_name=user_data.full_name,
         )
-        
+
         db.add(user)
         await db.commit()
         await db.refresh(user)
-        
+
         # Generate access token for immediate login
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
             data={"sub": user.id}, expires_delta=access_token_expires
         )
-        
+
         # Send welcome email in background
-        email_content = email_service.welcome_email(user.full_name)
-        asyncio.create_task(
-            email_service.send_email(
-                to_email=user.email,
-                subject="Welcome to SKYRA!",
-                html_content=email_content
-            )
-        )
-        
+        async def send_welcome_email():
+            try:
+                email_content = email_service.welcome_email(user.full_name)
+                await email_service.send_email(
+                    to_email=user.email,
+                    subject="Welcome to SKYRA!",
+                    html_content=email_content
+                )
+            except Exception as e:
+                from app.core.logging import logger
+                logger.error(f"Failed to send welcome email to {user.email}: {str(e)}", exc_info=True)
+
+        background_tasks.add_task(send_welcome_email)
+
         return Token(access_token=access_token, user=user)
     except HTTPException:
         raise
@@ -66,27 +70,27 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
+async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db), background_tasks: BackgroundTasks = BackgroundTasks()):
     result = await db.execute(select(User).where(User.email == user_data.email))
     user = result.scalar_one_or_none()
-    
+
     if not user or not verify_password(user_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
         )
-    
+
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive"
         )
-    
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.id}, expires_delta=access_token_expires
     )
-    
+
     # Send login notification email in background (non-blocking)
     async def send_login_notification():
         try:
@@ -100,9 +104,9 @@ async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
         except Exception as e:
             from app.core.logging import logger
             logger.error(f"Login notification email failed for user {user.email}: {str(e)}", exc_info=True)
-    
-    asyncio.create_task(send_login_notification())
-    
+
+    background_tasks.add_task(send_login_notification)
+
     return Token(access_token=access_token, user=user)
 
 
