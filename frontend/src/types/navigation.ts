@@ -31,6 +31,7 @@ export const navItems: NavItem[] = [
   { id: 'career-roadmap', label: 'Career Roadmap', href: '/dashboard/career-roadmap', icon: Map, category: 'ai' },
   { id: 'cover-letters', label: 'Cover Letters', href: '/dashboard/cover-letter', icon: Mail, category: 'ai' },
   { id: 'skill-gap', label: 'Skill Gap', href: '/dashboard/skill-gap', icon: TrendingUp, category: 'ai' },
+  { id: 'skyra-assistant', label: 'SKYRA Assistant', href: '/dashboard/skyra-assistant', icon: Sparkles, category: 'ai' },
   { id: 'about-us', label: 'About Us', href: '/dashboard/about-us', icon: Info, category: 'account' },
   { id: 'settings', label: 'Settings', href: '/dashboard/settings', icon: Settings, category: 'account' },
 ];
